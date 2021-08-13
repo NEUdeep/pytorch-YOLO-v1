@@ -142,7 +142,7 @@ if __name__ == '__main__':
     preds = defaultdict(list)
     image_list = [] #image path list
 
-    f = open('voc2007test.txt')
+    f = open('origin_txt/voc2007test.txt')
     lines = f.readlines()
     file_list = []
     for line in lines:
@@ -167,8 +167,8 @@ if __name__ == '__main__':
     #start test
     #
     print('---start test---')
-    # model = vgg16_bn(pretrained=False)
-    model = resnet50()
+    model = vgg16_bn(pretrained=False)
+    # model = resnet50()
     # model.classifier = nn.Sequential(
     #             nn.Linear(512 * 7 * 7, 4096),
     #             nn.ReLU(True),
@@ -182,8 +182,9 @@ if __name__ == '__main__':
     model.eval()
     model.cuda()
     count = 0
+    grid_num = 7
     for image_path in tqdm(image_list):
-        result = predict_gpu(model,image_path,root_path='/home/xzh/data/VOCdevkit/VOC2012/allimgs/') #result[[left_up,right_bottom,class_name,image_path],]
+        result = predict_gpu(model,image_path,grid_num,root_path='/workspace/mnt/storage/kanghaidong/khdwork/work_data/detection_data/public-data/VOCdevkit0712/VOC0712/JPEGImages/') #result[[left_up,right_bottom,class_name,image_path],]
         for (x1,y1),(x2,y2),class_name,image_id,prob in result: #image_id is actually image_path
             preds[class_name].append([image_id,prob,x1,y1,x2,y2])
         # print(image_path)

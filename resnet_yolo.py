@@ -175,7 +175,7 @@ class ResNet(nn.Module):
         layers.append(detnet_bottleneck(in_planes=256, planes=256, block_type='A'))
         return nn.Sequential(*layers)
 
-    def forward(self, x):
+    def forward(self, x): # x.shape: [24, 3, 448, 448]
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -185,7 +185,7 @@ class ResNet(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-        x = self.layer5(x)
+        x = self.layer5(x) # torch.Size([24, 2048, 14, 14]) ; so it was diff vgg
         # x = self.avgpool(x)
         # x = x.view(x.size(0), -1)
         # x = self.fc(x)

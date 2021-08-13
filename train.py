@@ -1,5 +1,7 @@
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -12,17 +14,18 @@ from resnet_yolo import resnet50, resnet18
 from yoloLoss import yoloLoss
 from dataset import yoloDataset
 
-from visualize import Visualizer
+# from visualize import Visualizer
 import numpy as np
 
 use_gpu = torch.cuda.is_available()
 
-file_root = '/home/xzh/data/VOCdevkit/VOC2012/allimgs/'
+file_root = '/workspace/mnt/storage/kanghaidong/khdwork/work_data/detection_data/public-data/VOCdevkit0712/VOC0712/JPEGImages/'
 learning_rate = 0.001
-num_epochs = 50
-batch_size = 24
-use_resnet = True
-if use_resnet:
+num_epochs = 160
+batch_size = 32
+grid_cell= 7
+
+if grid_cell == 14:
     net = resnet50()
 else:
     net = vgg16_bn()
@@ -45,7 +48,7 @@ else:
 print(net)
 #net.load_state_dict(torch.load('yolo.pth'))
 print('load pre-trined model')
-if use_resnet:
+if grid_cell==14:
     resnet = models.resnet50(pretrained=True)
     new_state_dict = resnet.state_dict()
     dd = net.state_dict()
@@ -86,17 +89,17 @@ optimizer = torch.optim.SGD(params, lr=learning_rate, momentum=0.9, weight_decay
 # optimizer = torch.optim.Adam(net.parameters(),lr=learning_rate,weight_decay=1e-4)
 
 # train_dataset = yoloDataset(root=file_root,list_file=['voc12_trainval.txt','voc07_trainval.txt'],train=True,transform = [transforms.ToTensor()] )
-train_dataset = yoloDataset(root=file_root,list_file=['voc2012.txt','voc2007.txt'],train=True,transform = [transforms.ToTensor()] )
+train_dataset = yoloDataset(root=file_root,list_file=['origin_txt/voc2012.txt','origin_txt/voc2007.txt'],train=True,transform = [transforms.ToTensor()],grid_cell=grid_cell)
 train_loader = DataLoader(train_dataset,batch_size=batch_size,shuffle=True,num_workers=4)
 # test_dataset = yoloDataset(root=file_root,list_file='voc07_test.txt',train=False,transform = [transforms.ToTensor()] )
-test_dataset = yoloDataset(root=file_root,list_file='voc2007test.txt',train=False,transform = [transforms.ToTensor()] )
+test_dataset = yoloDataset(root=file_root,list_file='origin_txt/voc2007test.txt',train=False,transform = [transforms.ToTensor()],grid_cell=grid_cell)
 test_loader = DataLoader(test_dataset,batch_size=batch_size,shuffle=False,num_workers=4)
 print('the dataset has %d images' % (len(train_dataset)))
 print('the batch_size is %d' % (batch_size))
 logfile = open('log.txt', 'w')
 
 num_iter = 0
-vis = Visualizer(env='xiong')
+# vis = Visualizer(env='xiong')
 best_test_loss = np.inf
 
 for epoch in range(num_epochs):
@@ -112,8 +115,9 @@ for epoch in range(num_epochs):
     if epoch == 40:
         learning_rate=0.00001
     # optimizer = torch.optim.SGD(net.parameters(),lr=learning_rate*0.1,momentum=0.9,weight_decay=1e-4)
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = learning_rate
+    # for param_group in optimizer.param_groups:
+    #     param_group['lr'] = learning_rate
+
     
     print('\n\nStarting epoch %d / %d' % (epoch + 1, num_epochs))
     print('Learning Rate for this epoch: {}'.format(learning_rate))
@@ -121,23 +125,28 @@ for epoch in range(num_epochs):
     total_loss = 0.
     
     for i,(images,target) in enumerate(train_loader):
+        # import pdb
+        # pdb.set_trace()
+        
         images = Variable(images)
         target = Variable(target)
         if use_gpu:
             images,target = images.cuda(),target.cuda()
+        if torch.cuda.device_count()>1:
+            net = torch.nn.DataParallel(net)
         
         pred = net(images)
-        loss = criterion(pred,target)
-        total_loss += loss.data[0]
+        loss = criterion(pred,target) # 这里面需要注意的地方，即如何计算loss
+        total_loss += loss.item()
         
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         if (i+1) % 5 == 0:
             print ('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f, average_loss: %.4f' 
-            %(epoch+1, num_epochs, i+1, len(train_loader), loss.data[0], total_loss / (i+1)))
+            %(epoch+1, num_epochs, i+1, len(train_loader), loss.item(), total_loss / (i+1)))
             num_iter += 1
-            vis.plot_train_val(loss_train=total_loss/(i+1))
+            # vis.plot_train_val(loss_train=total_loss/(i+1))
 
     #validation
     validation_loss = 0.0
@@ -150,9 +159,9 @@ for epoch in range(num_epochs):
         
         pred = net(images)
         loss = criterion(pred,target)
-        validation_loss += loss.data[0]
+        validation_loss += loss.item()
     validation_loss /= len(test_loader)
-    vis.plot_train_val(loss_val=validation_loss)
+    # vis.plot_train_val(loss_val=validation_loss)
     
     if best_test_loss > validation_loss:
         best_test_loss = validation_loss

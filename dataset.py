@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 
 class yoloDataset(data.Dataset):
     image_size = 448
-    def __init__(self,root,list_file,train,transform):
+    def __init__(self,root,list_file,train,transform,grid_cell):
         print('data init')
         self.root=root
         self.train = train
@@ -30,6 +30,7 @@ class yoloDataset(data.Dataset):
         self.boxes = []
         self.labels = []
         self.mean = (123,117,104)#RGB
+        self.grid_num = grid_cell
 
         if isinstance(list_file, list):
             # Cat multiple list files together.
@@ -61,7 +62,11 @@ class yoloDataset(data.Dataset):
 
     def __getitem__(self,idx):
         fname = self.fnames[idx]
-        img = cv2.imread(os.path.join(self.root+fname))
+        # print(fname)
+        img_path = os.path.join(self.root+fname)
+        # new_img_path = cv2.imdecode(np.fromfile(img_path, dtype=np.uint8), -1)
+
+        img = cv2.imread(img_path)
         boxes = self.boxes[idx].clone()
         labels = self.labels[idx].clone()
 
@@ -106,9 +111,8 @@ class yoloDataset(data.Dataset):
         labels (tensor) [...]
         return 7x7x30
         '''
-        grid_num = 14
-        target = torch.zeros((grid_num,grid_num,30))
-        cell_size = 1./grid_num
+        target = torch.zeros((self.grid_num,self.grid_num,30))
+        cell_size = 1./self.grid_num
         wh = boxes[:,2:]-boxes[:,:2]
         cxcy = (boxes[:,2:]+boxes[:,:2])/2
         for i in range(cxcy.size()[0]):
@@ -271,7 +275,7 @@ class yoloDataset(data.Dataset):
 def main():
     from torch.utils.data import DataLoader
     import torchvision.transforms as transforms
-    file_root = '/home/xzh/data/VOCdevkit/VOC2012/allimgs/'
+    file_root = '/data/VOCdevkit/VOC2012/imgs/'
     train_dataset = yoloDataset(root=file_root,list_file='voc12_trainval.txt',train=True,transform = [transforms.ToTensor()] )
     train_loader = DataLoader(train_dataset,batch_size=1,shuffle=False,num_workers=0)
     train_iter = iter(train_loader)
